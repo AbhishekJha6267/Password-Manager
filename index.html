@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: #2c3e50; color: white; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 8px; }
+        .auth-section, .main-section { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; }
+        input, select, button { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { background: #3498db; color: white; border: none; cursor: pointer; font-weight: 600; }
+        button:hover { background: #2980b9; }
+        .btn-secondary { background: #95a5a6; }
+        .btn-secondary:hover { background: #7f8c8d; }
+        .btn-danger { background: #e74c3c; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-success { background: #27ae60; }
+        .btn-success:hover { background: #229954; }
+        .password-item { background: #f8f9fa; padding: 20px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #3498db; }
+        .password-item.expired { border-left-color: #e74c3c; background: #fdf2f2; }
+        .password-actions { margin-top: 10px; }
+        .password-actions button { width: auto; margin-right: 10px; padding: 8px 16px; }
+        .strength-indicator { padding: 8px; border-radius: 4px; margin-top: 5px; font-weight: 600; }
+        .strength-weak { background: #ffebee; color: #c62828; }
+        .strength-fair { background: #fff3e0; color: #ef6c00; }
+        .strength-good { background: #f3e5f5; color: #7b1fa2; }
+        .strength-strong { background: #e8f5e8; color: #2e7d32; }
+        .hidden { display: none; }
+        .flex { display: flex; gap: 10px; align-items: center; }
+        .flex input { flex: 1; }
+        .user-info { background: #ecf0f1; padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal-content { background: white; margin: 10% auto; padding: 30px; width: 90%; max-width: 500px; border-radius: 8px; }
+        .close { float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: #e74c3c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Password Manager</h1>
+            <p>Secure, Multi-tenant Password Management</p>
+        </div>
+
+        <!-- Authentication Section -->
+        <div id="authSection" class="auth-section">
+            <h2>Login / Register</h2>
+            <div class="form-group">
+                <label>Username:</label>
+                <input type="text" id="username" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+            <div class="flex">
+                <button onclick="login()">Login</button>
+                <button onclick="register()" class="btn-secondary">Register</button>
+            </div>
+        </div>
+
+        <!-- Main Application -->
+        <div id="mainSection" class="main-section hidden">
+            <div class="user-info">
+                <strong>Logged in as: <span id="currentUser"></span></strong>
+                <button onclick="logout()" class="btn-danger" style="float: right; width: auto; padding: 5px 15px;">Logout</button>
+            </div>
+
+            <!-- Add Password Form -->
+            <h3>Add New Password</h3>
+            <div class="form-group">
+                <label>Title:</label>
+                <input type="text" id="newTitle" placeholder="e.g., Gmail, Facebook">
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <div class="flex">
+                    <input type="password" id="newPassword" placeholder="Enter password or generate">
+                    <button onclick="generatePassword()" class="btn-success" style="width: auto; padding: 12px 20px;">Generate</button>
+                </div>
+                <div id="strengthIndicator"></div>
+            </div>
+            <div class="form-group">
+                <label>URL:</label>
+                <input type="text" id="newUrl" placeholder="https://example.com">
+            </div>
+            <div class="form-group">
+                <label>Username/Email:</label>
+                <input type="text" id="newUsername" placeholder="your@email.com">
+            </div>
+            <div class="form-group">
+                <label>Expires in (days):</label>
+                <input type="number" id="newExpires" placeholder="90" min="1">
+            </div>
+            <button onclick="addPassword()">Add Password</button>
+
+            <hr style="margin: 30px 0;">
+
+            <!-- Password List -->
+            <h3>Your Passwords</h3>
+            <button onclick="loadPasswords()" class="btn-secondary">Refresh List</button>
+            <div id="passwordList"></div>
+        </div>
+    </div>
+
+    <!-- Update Modal -->
+    <div id="updateModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeUpdateModal()">&times;</span>
+            <h3>Update Password</h3>
+            <input type="hidden" id="updateId">
+            <div class="form-group">
+                <label>Title:</label>
+                <input type="text" id="updateTitle">
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <input type="password" id="updatePassword">
+            </div>
+            <div class="form-group">
+                <label>URL:</label>
+                <input type="text" id="updateUrl">
+            </div>
+            <div class="form-group">
+                <label>Username:</label>
+                <input type="text" id="updateUsername">
+            </div>
+            <div class="form-group">
+                <label>Expires in (days):</label>
+                <input type="number" id="updateExpires">
+            </div>
+            <button onclick="updatePassword()">Update Password</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        let currentUserId = null;
+
+        async function register() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                alert('Please enter username and password');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Registration successful! Please login.');
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                alert('Please enter username and password');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    currentUserId = data.user_id;
+                    document.getElementById('currentUser').textContent = username;
+                    document.getElementById('authSection').classList.add('hidden');
+                    document.getElementById('mainSection').classList.remove('hidden');
+                    loadPasswords();
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function logout() {
+            currentUserId = null;
+            document.getElementById('authSection').classList.remove('hidden');
+            document.getElementById('mainSection').classList.add('hidden');
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        async function generatePassword() {
+            try {
+                const response = await fetch(`${API_BASE}/generate-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ length: 16, include_symbols: true })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('newPassword').value = data.password;
+                    showStrengthIndicator(data.strength);
+                }
+            } catch (error) {
+                alert('Error generating password: ' + error.message);
+            }
+        }
+
+        async function checkPasswordStrength(password) {
+            if (!password) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/check-strength`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    showStrengthIndicator(data);
+                }
+            } catch (error) {
+                console.error('Error checking strength:', error);
+            }
+        }
+
+        function showStrengthIndicator(strength) {
+            const indicator = document.getElementById('strengthIndicator');
+            const strengthClass = `strength-${strength.strength.toLowerCase().replace(' ', '-')}`;
+            indicator.className = `strength-indicator ${strengthClass}`;
+            indicator.textContent = `Strength: ${strength.strength}`;
+            if (strength.missing && strength.missing.length > 0) {
+                indicator.textContent += ` (Missing: ${strength.missing.join(', ')})`;
+            }
+        }
+
+        document.getElementById('newPassword').addEventListener('input', function() {
+            checkPasswordStrength(this.value);
+        });
+
+        async function addPassword() {
+            const title = document.getElementById('newTitle').value;
+            const password = document.getElementById('newPassword').value;
+            const url = document.getElementById('newUrl').value;
+            const username = document.getElementById('newUsername').value;
+            const expires_days = document.getElementById('newExpires').value;
+            
+            if (!title || !password) {
+                alert('Title and password are required');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/passwords`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        title,
+                        password,
+                        url,
+                        username,
+                        expires_days: expires_days ? parseInt(expires_days) : null
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Password added successfully!');
+                    clearForm();
+                    loadPasswords();
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function clearForm() {
+            document.getElementById('newTitle').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('newUrl').value = '';
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newExpires').value = '';
+            document.getElementById('strengthIndicator').textContent = '';
+        }
+
+        async function loadPasswords() {
+            try {
+                const response = await fetch(`${API_BASE}/passwords?user_id=${currentUserId}`);
+                const passwords = await response.json();
+                
+                const listDiv = document.getElementById('passwordList');
+                if (passwords.length === 0) {
+                    listDiv.innerHTML = '<p>No passwords found. Add your first password above!</p>';
+                    return;
+                }
+                
+                listDiv.innerHTML = passwords.map(p => `
+                    <div class="password-item ${p.expired ? 'expired' : ''}">
+                        <h4>${p.title} ${p.expired ? '🔴 EXPIRED' : '🟢'}</h4>
+                        <p><strong>Username:</strong> ${p.username || 'N/A'}</p>
+                        <p><strong>URL:</strong> ${p.url || 'N/A'}</p>
+                        <p><strong>Password:</strong> <span id="pwd-${p.id}" style="font-family: monospace;">••••••••</span>
+                           <button onclick="togglePassword(${p.id}, '${p.password}')" style="width: auto; padding: 5px 10px; margin-left: 10px;">👁️</button></p>
+                        <p><strong>Created:</strong> ${new Date(p.created_at).toLocaleDateString()}</p>
+                        ${p.expires_at ? `<p><strong>Expires:</strong> ${new Date(p.expires_at).toLocaleDateString()}</p>` : ''}
+                        <div class="password-actions">
+                            <button onclick="openUpdateModal(${p.id}, '${p.title}', '${p.password}', '${p.url}', '${p.username}')">Update</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                alert('Error loading passwords: ' + error.message);
+            }
+        }
+
+        function togglePassword(id, password) {
+            const span = document.getElementById(`pwd-${id}`);
+            if (span.textContent === '••••••••') {
+                span.textContent = password;
+            } else {
+                span.textContent = '••••••••';
+            }
+        }
+
+        function openUpdateModal(id, title, password, url, username) {
+            document.getElementById('updateId').value = id;
+            document.getElementById('updateTitle').value = title;
+            document.getElementById('updatePassword').value = password;
+            document.getElementById('updateUrl').value = url || '';
+            document.getElementById('updateUsername').value = username || '';
+            document.getElementById('updateModal').style.display = 'block';
+        }
+
+        function closeUpdateModal() {
+            document.getElementById('updateModal').style.display = 'none';
+        }
+
+        async function updatePassword() {
+            const id = document.getElementById('updateId').value;
+            const title = document.getElementById('updateTitle').value;
+            const password = document.getElementById('updatePassword').value;
+            const url = document.getElementById('updateUrl').value;
+            const username = document.getElementById('updateUsername').value;
+            const expires_days = document.getElementById('updateExpires').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/passwords/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        title,
+                        password,
+                        url,
+                        username,
+                        expires_days: expires_days ? parseInt(expires_days) : null
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Password updated successfully!');
+                    closeUpdateModal();
+                    loadPasswords();
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('updateModal');
+            if (event.target === modal) {
+                closeUpdateModal();
+            }
+        }
+    </script>
+</body>
+</html>
