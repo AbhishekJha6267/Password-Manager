@@ -25,19 +25,6 @@ A secure, multi-tenant password manager with both CLI and Web interfaces.
    ```
    Server runs on http://localhost:5000
 
-## Build & Run the Docker Container
-
-1. **Build Docker Image**
-   ```bash
-   docker build -t password-manager .
-   ```
-
-2. **Run Container**
-   ```bash
-   docker run -p 5000:5000 password-manager
-   ```
-   Server runs on http://localhost:5000
-
 ## Usage
 
 ### CLI Interface
